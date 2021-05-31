@@ -15,14 +15,41 @@ bot = Bot()
 bot.login(username=USERNAME, password=PASSWORD)
 tbot = telebot.TeleBot(TOKEN)
 
-@tbot.message_handler(commands=['wphoto', 'wvideo']) # w - Write
+@tbot.message_handler(commands=['wp', 'wv']) # w - Write
 def check_and_write(message):
     check_dirs()
     tbot.send_message(message.chat.id, 'Введите аккаунт')
-    if message.text == '/wphoto':
+    if message.text == '/wp':
         tbot.register_next_step_handler(message, write_photo)
     else:
         tbot.register_next_step_handler(message, write_video)
+
+
+@tbot.message_handler(commands=['photo', 'video'])
+def get_media(message):
+    text = message.text
+    path = text.split('/')
+    for root, dirs, files in os.walk(path[1]):
+        for file in files:
+            if path[1] == 'photo':
+                with open(f'{path[1]}/{file}', 'rb') as obj:
+                    tbot.send_photo(message.chat.id, obj)
+            else:
+                with open(f'{path[1]}/{file}', 'rb') as obj:
+                    tbot.send_video(message.chat.id, obj)
+
+
+@tbot.message_handler(content_types=['text'])
+def write_media_for_url(message):
+    check_dirs()
+    url = message.text
+    try:
+        os.mkdir('photo')
+    except FileExistsError as exc:
+        print(exc)
+    chose_media = bot.get_media_id_from_link(url)
+    download_photo(chose_media, "photo/img_")
+    tbot.send_message(message.chat.id, 'загрузка завершена')
 
 
 def write_photo(message):
@@ -47,32 +74,6 @@ def write_video(message):
         download_video(media_id, "video/vd_" + str(e))
     tbot.send_message(message.chat.id, 'загрузка завершена')
 
-
-@tbot.message_handler(commands=['photo', 'video'])
-def get_media(message):
-    text = message.text
-    path = text.split('/')
-    for root, dirs, files in os.walk(path[1]):
-        for file in files:
-            if path[1] == 'photo':
-                with open(f'{path[1]}/{file}', 'rb') as obj:
-                    tbot.send_photo(message.chat.id, obj)
-            else:
-                with open(f'{path[1]}/{file}', 'rb') as obj:
-                    tbot.send_video(message.chat.id, obj)
-
-
-@tbot.message_handler(content_types=['text'])
-def write_media_for_url(message):
-    url = message.text
-    try:
-        os.mkdir('photo')
-    except FileExistsError as exc:
-        print(exc)
-    chose_media = bot.get_media_id_from_link(url)
-    download_photo(chose_media, "photo/img_")
-    tbot.send_message(message.chat.id, 'загрузка завершена')
-
 def check_dirs():
     for root, dirs, files in os.walk('photo'):
         for file in files:
@@ -85,7 +86,7 @@ def check_dirs():
 def download_photo(media_id, filename):
     media = bot.get_media_info(media_id)[0]
     if 'image_versions2' in media.keys() and 'video_versions' not in media.keys():
-        url = media['image_versions2']['candidates'][1]['url']
+        url = media['image_versions2']['candidates'][0]['url']
         response = requests.get(url)
         with open(filename + ".jpg", "wb") as f:
             response.raw.decode_content = True
